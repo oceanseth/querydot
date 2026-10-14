@@ -17,7 +17,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
     'use strict';
 
-    var VERSION = '0.1.0';
+    var VERSION = '0.2.0';
     var PREFIX = '.';
     var WAIT_MS = 10000;       // how long to wait for late-rendered elements
     var HIGHLIGHT_MS = 2000;   // how long the highlight pulse lasts
@@ -148,13 +148,72 @@
     }
 
     /* ------------------------------------------------------------------ *
+     * Cross-origin driving (opt-in)                                       *
+     *                                                                     *
+     * A page that wants to be drivable from an embedding parent opts in   *
+     * by adding data-querydot-origins="https://host.example" to the       *
+     * script tag, or calling Querydot.listen(['https://host.example']) /  *
+     * listen('*'). (No literal closing script tag in this file, so it     *
+     * stays safe to inline.)                                              *
+     *                                                                     *
+     * The parent then calls Querydot.drive(iframe, selector, origin) —    *
+     * a plain postMessage({querydot: selector}) under the hood. On        *
+     * success the embedded page acks with {querydot:'found', selector}.   *
+     * ------------------------------------------------------------------ */
+
+    var allowedOrigins = null; // null = messaging disabled
+
+    function listen(origins) {
+        if (origins === '*') {
+            allowedOrigins = '*';
+        } else if (typeof origins === 'string') {
+            allowedOrigins = origins.split(/\s+/).filter(Boolean);
+        } else {
+            allowedOrigins = origins || [];
+        }
+    }
+
+    function onMessage(e) {
+        if (!allowedOrigins) return;
+        var d = e.data;
+        if (!d || typeof d !== 'object' || typeof d.querydot !== 'string' ||
+            d.querydot === 'found') return; // ignore our own ack shape
+        if (allowedOrigins !== '*' && allowedOrigins.indexOf(e.origin) === -1) return;
+
+        var sel = d.querydot;
+        var src = e.source;
+        var origin = e.origin;
+        var acked = false;
+        function ack() {
+            if (acked) return;
+            acked = true;
+            document.removeEventListener('querydot:found', ack);
+            try {
+                if (src) src.postMessage({ querydot: 'found', selector: sel }, origin);
+            } catch (err) { /* source window gone — non-fatal */ }
+        }
+        document.addEventListener('querydot:found', ack);
+        setTimeout(function () {
+            document.removeEventListener('querydot:found', ack);
+        }, WAIT_MS + 100);
+        goto(sel);
+    }
+
+    // Parent-side helper: drive an embedded page that ships querydot.
+    // `targetOrigin` should be the iframe's origin; defaults to '*'.
+    function drive(frame, selector, targetOrigin) {
+        var win = frame && frame.contentWindow ? frame.contentWindow : frame;
+        win.postMessage({ querydot: String(selector) }, targetOrigin || '*');
+    }
+
+    /* ------------------------------------------------------------------ *
      * Auto-run on pages; stays inert under Node (helpers still usable).   *
      * Opt out with <script src="querydot.js" data-querydot-manual>.       *
      * ------------------------------------------------------------------ */
 
     if (typeof document !== 'undefined' && typeof location !== 'undefined') {
-        var manual = document.currentScript &&
-            document.currentScript.hasAttribute('data-querydot-manual');
+        var script = document.currentScript;
+        var manual = script && script.hasAttribute('data-querydot-manual');
         if (!manual) {
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', init);
@@ -163,6 +222,10 @@
             }
             window.addEventListener('hashchange', init);
         }
+        if (script && script.hasAttribute('data-querydot-origins')) {
+            listen(script.getAttribute('data-querydot-origins'));
+        }
+        window.addEventListener('message', onMessage);
     }
 
     return {
@@ -172,6 +235,8 @@
         extract: extract,
         link: link,
         goto: goto,
-        init: init
+        init: init,
+        listen: listen,
+        drive: drive
     };
 });

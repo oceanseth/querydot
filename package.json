@@ -1,6 +1,6 @@
 {
   "name": "querydot",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Deep-link to any element on a page with a base64url-encoded CSS selector in the URL (?. query or #. hash form). Zero dependencies.",
   "main": "querydot.js",
   "scripts": {

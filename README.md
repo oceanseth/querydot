@@ -66,8 +66,47 @@ Or by hand: base64url-encode the selector (`btoa(sel).replace(/\+/g,'-').replace
 | `Querydot.encode(sel)` / `Querydot.decode(token)` | base64url helpers |
 | `Querydot.extract(search, hash)` | Pull the decoded selector out of URL parts, or `null` |
 | `Querydot.init()` | Re-run URL detection (auto-runs on load and `hashchange`) |
+| `Querydot.drive(iframe, selector, origin?)` | Parent-side: drive an embedded page via postMessage |
+| `Querydot.listen(origins)` | Embedded-side: accept `drive()` messages from these origins (`'*'` for any) |
 
 Add `data-querydot-manual` to the script tag to disable auto-run.
+
+## Driving a page inside an iframe (cross-origin)
+
+If the embedded page ships querydot, a parent on **any** origin can drive it three ways:
+
+```html
+<!-- 1. point the iframe at a deep link -->
+<iframe id="f" src="https://remote.example/page#.LmNhcmQ"></iframe>
+
+<script>
+  const f = document.getElementById('f');
+
+  // 2. re-navigate WITHOUT a reload: changing only the #. hash is a
+  //    fragment navigation — querydot listens for hashchange.
+  f.src = 'https://remote.example/page' + '#.' + Querydot.encode('.other-card');
+
+  // 3. postMessage, if the embedded page opted in (see below) —
+  //    acks back {querydot:'found', selector} when the element is reached.
+  Querydot.drive(f, '#pricing .tier:nth-child(3)', 'https://remote.example');
+</script>
+```
+
+Ways 1–2 need nothing from the embedded page beyond the script itself. Way 3 is
+opt-in with an origin allowlist:
+
+```html
+<script src="querydot.js" data-querydot-origins="https://trusted-host.example"></script>
+<!-- or at runtime: Querydot.listen(['https://trusted-host.example']) / listen('*') -->
+```
+
+If the remote page does **not** ship querydot, the same-origin policy walls off its
+DOM — no script injection, no `querySelector`, no scrolling from outside (that's the
+"XSS blocking" you'd hit, working as intended). Notably the native text-fragment
+standard is *also* disabled inside iframes — but plain `#element-id` fragments in the
+iframe `src` still scroll natively, so if the target has an id you need no JS at all.
+Otherwise your options are a browser-extension content script or proxying the page
+through your own origin.
 
 On success the library sets `data-querydot="found"` on `<html>` and fires a bubbling
 `querydot:found` event on the target — handy for analytics or tests.
