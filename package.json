@@ -1,0 +1,29 @@
+{
+  "name": "querydot",
+  "version": "0.1.0",
+  "description": "Deep-link to any element on a page with a base64url-encoded CSS selector in the URL (?. query or #. hash form). Zero dependencies.",
+  "main": "querydot.js",
+  "scripts": {
+    "test": "node test/unit.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oceanseth/querydot.git"
+  },
+  "keywords": [
+    "deep-link",
+    "css-selector",
+    "anchor",
+    "fragment",
+    "scroll-to",
+    "text-fragments",
+    "url"
+  ],
+  "author": "Seth Caldwell",
+  "license": "MIT",
+  "files": [
+    "querydot.js",
+    "README.md",
+    "LICENSE"
+  ]
+}
